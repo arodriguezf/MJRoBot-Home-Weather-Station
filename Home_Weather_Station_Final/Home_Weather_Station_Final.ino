@@ -1,14 +1,14 @@
-/****************************************************************************
-* Local Weather Station with Wunderground external data and Indoor data from DHT11
-* https://www.wunderground.com/
-* 
-* Adapted from the original work of Daniel Eichhorn: https://github.com/squix78
-* 
-* Marcelo Rovai - 15March17
-*****************************************************************************/
+
+/* ESP */
+#include <ESP8266WiFi.h>
+WiFiClient client;
+
+/* Blynk */
+#define BLYNK_PRINT Serial    // Comment this out to disable prints and save space
+#include <BlynkSimpleEsp8266.h>
+
 #include "stationDefines.h"       // Project definitions
 #include "stationCredentials.h"
-#include <ESP8266WiFi.h>
 #include <JsonListener.h>
 
 /* Ticker */
@@ -73,23 +73,23 @@ void setup()
   display.setTextAlignment(TEXT_ALIGN_CENTER);
   display.setContrast(255);
 
-  WiFi.begin(WIFI_SSID, WIFI_PWD);
+  //WiFi.begin(WIFI_SSID, WIFI_PWD);
 
-  int counter = 0;
-  while (WiFi.status() != WL_CONNECTED) 
-  {
-    delay(500);
-    Serial.print(".");
-    display.clear();
-    display.flipScreenVertically();
-    display.drawString(64, 10, "Conectando al WiFi");
-    display.drawXbm(46, 30, 8, 8, counter % 3 == 0 ? activeSymbole : inactiveSymbole);
-    display.drawXbm(60, 30, 8, 8, counter % 3 == 1 ? activeSymbole : inactiveSymbole);
-    display.drawXbm(74, 30, 8, 8, counter % 3 == 2 ? activeSymbole : inactiveSymbole);
-    display.display();
-
-    counter++;
-  }
+//  int counter = 0;
+//  while (WiFi.status() != WL_CONNECTED) 
+//  {
+//    delay(500);
+//    Serial.print(".");
+//    display.clear();
+//    display.flipScreenVertically();
+//    display.drawString(64, 10, "Conectando a la WiFi");
+//    display.drawXbm(46, 30, 8, 8, counter % 3 == 0 ? activeSymbole : inactiveSymbole);
+//    display.drawXbm(60, 30, 8, 8, counter % 3 == 1 ? activeSymbole : inactiveSymbole);
+//    display.drawXbm(74, 30, 8, 8, counter % 3 == 2 ? activeSymbole : inactiveSymbole);
+//    display.display();
+//
+//    counter++;
+//  }
 
   ui.setTargetFPS(30);
   
@@ -101,6 +101,8 @@ void setup()
   ui.setOverlays(overlays, numberOfOverlays);
 
   ui.init();   // Inital UI takes care of initalising the display too.
+
+  Blynk.begin(auth, WIFI_SSID, WIFI_PWD);
 
   Serial.println("");
   display.flipScreenVertically();
@@ -116,6 +118,8 @@ void loop()
   {
     updateData(&display);
   }
+
+  Blynk.run();
 
   int remainingTimeBudget = ui.update();
 
@@ -145,17 +149,21 @@ void drawProgress(OLEDDisplay *display, int percentage, String label)
 ****************************************************/
 void updateData(OLEDDisplay *display) 
 {
-  drawProgress(display, 10, "Updating time...");
+  drawProgress(display, 10, "Actualizando tiempo...");
   timeClient.updateTime();
-  drawProgress(display, 30, "Updating conditions...");
+  drawProgress(display, 30, "Actualizando condiciones...");
   wunderground.updateConditions(WUNDERGRROUND_API_KEY, WUNDERGRROUND_LANGUAGE, WUNDERGROUND_COUNTRY, WUNDERGROUND_CITY);
-  drawProgress(display, 50, "Updating forecasts...");
+  drawProgress(display, 40, "Actualizando previsiones...");
   wunderground.updateForecast(WUNDERGRROUND_API_KEY, WUNDERGRROUND_LANGUAGE, WUNDERGROUND_COUNTRY, WUNDERGROUND_CITY);
-  drawProgress(display, 80, "Updating local data...");
+  drawProgress(display, 60, "Actualizando datos locales...");
   getDHT();
+  drawProgress(display, 70, "Actualizando Blynk...");
+  sendUptime();
+  drawProgress(display, 80, "Actualizando Thinkspeak...");
+  sendDataTS();
   lastUpdate = timeClient.getFormattedTime();
   readyForWeatherUpdate = false;
-  drawProgress(display, 100, "Done...");
+  drawProgress(display, 100, "Listo...");
   delay(1000);
 }
 
@@ -183,17 +191,17 @@ void drawCurrentWeather(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t
 {
   display->setFont(ArialMT_Plain_10);
   display->setTextAlignment(TEXT_ALIGN_LEFT);
-  display->drawString(60 + x, 5 + y, wunderground.getWeatherText());
+  display->drawString(56 + x, 5 + y, wunderground.getWeatherText());
 
   display->setFont(ArialMT_Plain_24);
   String temp = wunderground.getCurrentTemp() + "°C";
-  display->drawString(60 + x, 15 + y, temp);
+  display->drawString(56 + x, 15 + y, temp);
   int tempWidth = display->getStringWidth(temp);
 
   display->setFont(Meteocons_Plain_42);
   String weatherIcon = wunderground.getTodayIcon();
   int weatherIconWidth = display->getStringWidth(weatherIcon);
-  display->drawString(32 + x - weatherIconWidth / 2, 05 + y, weatherIcon);
+  display->drawString(28 + x - weatherIconWidth / 2, 05 + y, weatherIcon);
 }
 
 /***************************************************
@@ -236,7 +244,7 @@ void drawDHT(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t
   
   display->setFont(ArialMT_Plain_10);
   display->setTextAlignment(TEXT_ALIGN_LEFT);
-  display->drawString(43 + x, y, "INDOOR");
+  display->drawString(43 + x, y, "INTERIOR");
 
   display->setFont(ArialMT_Plain_24);
   String hum = String(localHum) + "%";
@@ -263,7 +271,7 @@ void drawHeaderOverlay(OLEDDisplay *display, OLEDDisplayUiState* state)
   display->setFont(ArialMT_Plain_10);
 
   display->setTextAlignment(TEXT_ALIGN_LEFT);
-  String tempIn = "In: "+ String(localTemp) + "°C";
+  String tempIn = "Int: "+ String(localTemp) + "°C";
   display->drawString(0, 54, tempIn);
 
   display->setColor(WHITE);
@@ -272,7 +280,7 @@ void drawHeaderOverlay(OLEDDisplay *display, OLEDDisplayUiState* state)
   display->drawString(53, 54, String(state->currentFrame + 1) + "/" + String(numberOfFrames));
   
   display->setTextAlignment(TEXT_ALIGN_RIGHT);
-  String tempOut = "Out: "+ wunderground.getCurrentTemp() + "°C";
+  String tempOut = "Ext: "+ wunderground.getCurrentTemp() + "°C";
   display->drawString(128, 54, tempOut);
 
   display->drawHorizontalLine(0, 52, 128);
@@ -303,6 +311,48 @@ void getDHT()
     localHum = humIni;
     return;
   }
+}
+
+/***************************************************
+ * Send DHT data to Blynk
+ **************************************************/
+void sendUptime()
+{
+  // You can send any value at any time.
+  // Please don't send more that 10 values per second.
+  Blynk.virtualWrite(10, localTemp); //virtual pin V10
+  Blynk.virtualWrite(11, localHum); // virtual pin V11
+  //Blynk.virtualWrite(12, soilMoister); // virtual pin V12
+}
+
+/***************************************************
+ * Sending Data to Thinkspeak Channel
+ **************************************************/
+void sendDataTS(void)
+{
+   if (client.connect(TS_SERVER, 80)) 
+   { 
+     String postStr = TS_API_KEY;
+     postStr += "&field1=";
+     postStr += String(localTemp);
+     postStr += "&field2=";
+     postStr += String(localHum);
+     //postStr += "&field3=";
+     //postStr += String(soilMoister);
+     postStr += "\r\n\r\n";
+   
+     client.print("POST /update HTTP/1.1\n");
+     client.print("Host: api.thingspeak.com\n");
+     client.print("Connection: close\n");
+     client.print("X-THINGSPEAKAPIKEY: " + TS_API_KEY + "\n");
+     client.print("Content-Type: application/x-www-form-urlencoded\n");
+     client.print("Content-Length: ");
+     client.print(postStr.length());
+     client.print("\n\n");
+     client.print(postStr);
+     delay(1000); 
+   }
+   client.stop();
 }
 
 

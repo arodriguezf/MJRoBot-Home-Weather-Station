@@ -5,7 +5,7 @@ int localHum = 0;
 int localTemp = 0;
 
 /* TimeClient */
-const float UTC_OFFSET = -3;
+const float UTC_OFFSET = +2;
 
 const int UPDATE_INTERVAL_SECS = 5 * 60; // Update every 5min
 
